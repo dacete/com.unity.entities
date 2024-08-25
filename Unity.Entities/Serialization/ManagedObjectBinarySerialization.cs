@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -39,7 +40,7 @@ namespace Unity.Entities.Serialization
         {
             return new UnityEngine.Keyframe(kf.Time, kf.Value, kf.InTangent, kf.OutTangent, kf.InWeight, kf.OutWeight)
             {
-                weightedMode = (UnityEngine.WeightedMode) kf.WeightedMode
+                weightedMode = (UnityEngine.WeightedMode)kf.WeightedMode
             };
         }
 
@@ -73,7 +74,7 @@ namespace Unity.Entities.Serialization
             m_Stream = stream;
             m_Params = new BinarySerializationParameters
             {
-                UserDefinedAdapters = new List<IBinaryAdapter> {this},
+                UserDefinedAdapters = new List<IBinaryAdapter> { this },
                 State = new BinarySerializationState(),
             };
             m_UnityObjectRefs = unityObjectRefs;
@@ -97,6 +98,27 @@ namespace Unity.Entities.Serialization
             var parameters = m_Params;
             parameters.SerializedType = obj?.GetType();
             BinarySerialization.ToBinary(m_Stream, obj, parameters);
+        }
+
+        /// <summary>
+        /// Writes the given boxed object to the binary stream.
+        /// </summary>
+        /// <remarks>
+        /// Any <see cref="UnityEngine.Object"/> references are added to the object table and can be retrieved by calling <see cref="GetUnityObjects"/>.
+        /// </remarks>
+        /// <param name="obj">The object to serialize.</param>
+        public void WriteObject(object obj, Type type)
+        {
+            var parameters = m_Params;
+            parameters.SerializedType = obj?.GetType();
+            var info = typeof(ManagedObjectBinaryWriter).GetMethod("InvokeBullshit", BindingFlags.Public | BindingFlags.Instance);
+            var genInfo = info.MakeGenericMethod(type);
+            genInfo.Invoke(this, new object[] { obj, parameters });
+        }
+
+        public void InvokeBullshit<T>(T obj, BinarySerializationParameters par)
+        {
+            BinarySerialization.ToBinary(m_Stream, obj, par);
         }
 
         void Unity.Serialization.Binary.IBinaryAdapter<UntypedUnityObjectRef>.Serialize(in BinarySerializationContext<UntypedUnityObjectRef> context, UntypedUnityObjectRef value)
@@ -157,7 +179,7 @@ namespace Unity.Entities.Serialization
 
                 for (int i = 0, count = value.length; i < count; ++i)
                 {
-                    context.Writer->Add((SerializedKeyFrame) value[i]);
+                    context.Writer->Add((SerializedKeyFrame)value[i]);
                 }
             }
             else
@@ -197,7 +219,7 @@ namespace Unity.Entities.Serialization
             m_Stream = stream;
             m_Params = new BinarySerializationParameters
             {
-                UserDefinedAdapters = new List<IBinaryAdapter> {this},
+                UserDefinedAdapters = new List<IBinaryAdapter> { this },
                 State = new BinarySerializationState(),
             };
             m_UnityObjects = unityObjects;
@@ -225,6 +247,28 @@ namespace Unity.Entities.Serialization
             var parameters = m_Params;
             parameters.SerializedType = type;
             return BinarySerialization.FromBinary<object>(m_Stream, parameters);
+        }
+
+        /// <summary>
+        /// Reads from the binary stream and returns the next object.
+        /// </summary>
+        /// <remarks>
+        /// The type is given as a hint to the serializer to avoid writing root type information.
+        /// </remarks>
+        /// <param name="type">The root type.</param>
+        /// <returns>The deserialized object value.</returns>
+        public object ReadObjectFromType(Type type)
+        {
+            var parameters = m_Params;
+            parameters.SerializedType = type;
+            var info = typeof(ManagedObjectBinaryReader).GetMethod("InvokeBullshit", BindingFlags.Public | BindingFlags.Instance);
+            var genInfo = info.MakeGenericMethod(type);
+            return genInfo.Invoke(this, new object[] { parameters });
+        }
+
+        public T InvokeBullshit<T>(BinarySerializationParameters par)
+        {
+            return BinarySerialization.FromBinary<T>(m_Stream, par);
         }
 
         void Unity.Serialization.Binary.IContravariantBinaryAdapter<UnityEngine.Object>.Serialize(IBinarySerializationContext context, UnityEngine.Object value)

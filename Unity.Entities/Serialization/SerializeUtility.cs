@@ -1807,7 +1807,7 @@ namespace Unity.Entities.Serialization
                 Assert.IsTrue(typeIndex.IsManagedSharedComponent);
                 var managedObject = Convert.ChangeType(sharedData, type);
 
-                propertiesWriter.WriteObject(managedObject);
+                propertiesWriter.WriteObject(managedObject, type);
 
                 sharedComponentRecordArray[i] = new SharedComponentRecord()
                 {
@@ -1850,7 +1850,7 @@ namespace Unity.Entities.Serialization
 
                             managedComponentCount++;
                             allManagedObjectsBuffer.Add<ulong>(cType.StableTypeHash);
-                            propertiesWriter.WriteObject(obj);
+                            propertiesWriter.WriteObject(obj, cType.Type);
                         }
                     }
                 }
@@ -2028,7 +2028,7 @@ namespace Unity.Entities.Serialization
                 ulong typeHash = sharedAndManagedStream.ReadNext<ulong>();
                 TypeIndex typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(typeHash);
                 Type managedType = TypeManager.GetTypeInfo(typeIndex).Type;
-                object obj = managedDataReader.ReadObject(managedType);
+                object obj = managedDataReader.ReadObjectFromType(managedType);
                 mcs.SetManagedComponentValue(i + 1, obj);
             }
             sharedAndManagedBuffer.Dispose();
@@ -2043,7 +2043,7 @@ namespace Unity.Entities.Serialization
                 var record = sharedComponentRecordArray[i];
                 var typeIndex = TypeManager.GetTypeIndexFromStableTypeHash(record.StableTypeHash);
                 ref readonly var typeInfo = ref TypeManager.GetTypeInfo(typeIndex);
-                var managedObject = managedDataReader.ReadObject(typeInfo.Type);
+                var managedObject = managedDataReader.ReadObjectFromType(typeInfo.Type);
                 var currentHash = TypeManager.GetHashCode(managedObject, typeInfo.TypeIndex);
                 var sharedComponentIndex = access->InsertSharedComponentAssumeNonDefault(typeIndex, currentHash, managedObject);
 
